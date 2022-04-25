@@ -44,6 +44,54 @@
                 width: calc(100vw - var(--unit) / 150);
                 user-select:none;
             }
+            h5 {
+                margin-bottom: .3rem;
+            }
+            .overlay {
+                width: 100vw;
+                height: 100vh;
+                top: 0;
+                left: 0;
+                position: absolute;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+            }
+            .card {
+                display: flex;
+                flex-direction: column;
+                box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2);
+                background-color: whitesmoke;
+                transition: 0.3s;
+                border-radius: .3rem;
+                margin: 1rem;
+                font-family: Arial, Helvetica, sans-serif;
+                max-height: calc(100vh - 2rem);
+            }
+            .segment {
+                border-top: 1px solid darkgray;
+                border-bottom: 1px solid darkgray;
+                width: 100%;
+                overflow-y: auto;
+                margin:1rem 0
+            }
+            .clue {
+                display: grid;
+                grid-template-columns: 3.1rem auto;
+                margin-bottom: .6rem;
+            }
+            .centered {
+                display: flex;
+                align-items: center;
+            }
+            .button {
+                background-color: darkslategray;
+                color: white;
+                border-radius: .3rem;
+                padding: .6rem;
+                cursor:pointer;
+                margin-bottom: .3rem;
+            }
             #plane {
                 margin: var(--margin-first);
                 height: calc(10.5*var(--planeUnit));
@@ -65,6 +113,7 @@
                 margin: calc(var(--planeUnit) / 28);
                 padding-top: calc(var(--planeUnit) / 9);
                 text-align: center;
+                cursor: pointer;
             }
 
             .given {
@@ -157,19 +206,18 @@
             let selected = null;
             let marker = localStorage.getItem("marker") ?? false;
             let check = false;
+            let time = null;
             let highlightBox = localStorage.getItem("highlightBox") ?? false;
             let highlightRows = localStorage.getItem("highlightRows") ?? false;
             let highlightKing = localStorage.getItem("highlightKing") ?? false;
             let highlightKnight = localStorage.getItem("highlightKnight") ?? false;
             let highlightOrtadj = localStorage.getItem("highlightOrtadj") ?? false;
             
-            // Getter for a cell
             function getColRow(col, row) {
                 let i = 9 * row + col;
                 return board[i];
             }
 
-            // Getter for things to highlight
             function getRows(col, row) {
                 let result = [];
                 for (let c = 0; c < 9; c++)
@@ -215,7 +263,6 @@
                 return result;
             }
 
-            // Helper functions
             function buildCell(data = "") {
                 let text = document.createTextNode(data);
                 let cont = document.createElement("div");
@@ -224,8 +271,105 @@
                 return {text, cont};
             }
 
-            function init() {
+            function showManual() {
+                saveTime();
+                window.onclose = null;
+                document.getElementById("manual").style.display = "flex";
+            }
+
+            function saveTime() {
+                let elapsed = Date.now() - time;
+                let storedTime = parseInt(localStorage.getItem("time") ?? 0);
+                localStorage.setItem("time", elapsed + storedTime);
+            }
+
+            function trySetValue(value = "") {
+                if(selected == null || selected.value == value) return;
+
+                if(value == "") {
+                    selected.value = "";
+                    selected.uiElement.text.nodeValue = "";
+                    selected.uiElement.cont.classList.remove("checktext");
+                }
+                else {
+                    selected.value = value;
+                    selected.uiElement.text.nodeValue = selected.given ? selected.solution : selected.value;
+                    if(check && selected.value != selected.solution) {
+                        selected.uiElement.cont.classList.add("checktext");
+
+                        document.getElementById("errorindicator").textContent =
+                            ++errors > maxerrors ? "wtf?" : errors;
+                        localStorage.setItem("errors", errors);
+                    }
+                    else
+                        selected.uiElement.cont.classList.remove("checktext");
+                }
+                localStorage.setItem(`${selected.row}_${selected.col}`, JSON.stringify(selected));
                 
+                selected.setHighlights();
+                checkSolution();
+            }
+
+            function checkSolution() {
+                if(!board.every(c => c.solution == c.value)) return;
+                let storedTime = parseInt(localStorage.getItem("time") ?? 0);
+                let elapsed = time != null ? Date.now() - time : 0;
+                let finished = new Date(storedTime + elapsed);
+
+                let years = finished.getFullYear() > 1970 ? `${finished.getFullYear() - 1970} ${finished.getFullYear() - 1970 > 1 ? "Jahre" : "Jahr"} ` : null;
+                let months = finished.getMonth() > 0 ? `${finished.getMonth()} ${finished.getMonth() > 1 ? "Monate" : "Monat"} ` : null;
+                let days = finished.getDate() > 1 ? `${finished.getDate() - 1} ${finished.getDate() - 1 > 1 ? "Tage" : "Tag"} ` : null;
+                let hours = finished.getHours() > 0 ? `${finished.getHours()} ${finished.getHours() > 1 ? "Stunden" : "Stunde"} ` : null;
+                let minutes = finished.getMinutes() > 0 ? `${finished.getMinutes()} ${finished.getMinutes() > 1 ? "Minuten" : "Minute"} ` : null;
+                let seconds = finished.getSeconds() > 0 || finished.getMilliseconds() > 0 ? `${finished.getSeconds() + finished.getMilliseconds() / 1000} Sekunden ` : null;
+
+                let timeString = "";
+                if(years != null) timeString = years;
+                if(months != null) {
+                    if(days == null && hours == null && minutes == null && seconds == null) timestring += "und ";
+                    timeString += months;
+                }
+                if(days != null) {
+                    if(hours == null && minutes == null && seconds == null) timestring += "und ";
+                    timeString += days;
+                }
+                if(hours != null) {
+                    if(minutes == null && seconds == null) timestring += "und ";
+                    timeString += hours;
+                }
+                if(minutes != null) {
+                    if(seconds == null) timestring += "und ";
+                    timeString += minutes;
+                }
+                if(seconds != null) timeString += "und " + seconds;
+
+                timeString = timeString.substr(0, timeString.length - 1);
+
+                document.getElementById("time").textContent = timeString;
+                document.getElementById("errors").textContent = errors;
+                document.getElementById("solved").style.display = "flex";
+            }
+
+            function init() {
+                window.onkeyup = e => {
+                    if(e.keyCode > 48 && e.keyCode < 58) trySetValue(e.keyCode - 48);
+                    else if(e.keyCode > 96 && e.keyCode < 106) trySetValue(e.keyCode - 96);
+                    else if(e.keyCode == 8 || e.keyCode == 46) trySetValue();
+                }
+
+                document.getElementById("close").onclick = () => {
+                    document.getElementById("manual").style.display = "none";
+                    checkSolution();
+                    time = Date.now();
+                    window.onclose = saveTime;
+                }
+
+                document.getElementById("restart").onclick = () => {
+                    window.onclose = null;
+                    localStorage.clear();
+                    window.location.reload();
+                }
+
                 document.getElementById("errorindicator").textContent =
                     errors > maxerrors ? "wtf?" : errors;
 
@@ -366,9 +510,10 @@
                                 selected = null;
                                 localStorage.removeItem("selected");
                                 cell.updateUI();
-                                board.filter(c => c.highlighted > 0)
+                                board.filter(c => c.highlighted > 0 || c.indicated)
                                     .forEach(c => {
                                         c.highlighted = 0;
+                                        c.indicated = false;
                                         c.updateUI();
                                     });
                             }
@@ -388,36 +533,15 @@
                     plane.appendChild(box);
 
                     let inputElement = buildCell((b + 1));
-                    inputElement.cont.onclick = () => {
-                        if(selected != null && selected.value != b + 1) {
-                            selected.value = b + 1;
-                            selected.uiElement.text.nodeValue = selected.given ? selected.solution : selected.value;
-                            if(check && selected.value != selected.solution) {
-                                selected.uiElement.cont.classList.add("checktext");
-
-                                document.getElementById("errorindicator").textContent =
-                                    ++errors > maxerrors ? "wtf?" : errors;
-                            }
-                            else
-                                selected.uiElement.cont.classList.remove("checktext");
-                            selected.setHighlights();
-                            selected.updateUI();
-                        }
-                    }
+                    inputElement.cont.onclick = () => trySetValue(b + 1);
                     inputs.appendChild(inputElement.cont);
                 }
-                    
+
                 if(selected != null) {
                     selected.updateUI();
                     selected.setHighlights();
                 }
-                document.getElementById("eraser").onclick = () => {
-                    if(selected != null) {
-                        selected.value = "";
-                        selected.uiElement.text.nodeValue = "";
-                        selected.uiElement.cont.classList.remove("checktext");
-                    }
-                }
+                document.getElementById("eraser").onclick = () => trySetValue();
                 let markerelem = document.getElementById("marker");
                 if(marker) markerelem.classList.add("marked");
                 markerelem.onclick = (evt) => {
@@ -431,14 +555,7 @@
                         localStorage.removeItem("marker");
                     }
                 }
-                document.getElementById("clear").onclick = () => {
-                    board.forEach(cell => {
-                        if(cell.marked == true) {
-                            cell.marked = false;
-                            cell.updateUI();
-                        }
-                    });
-                }
+                document.getElementById("question").onclick = showManual;
                 let squareelem = document.getElementById("square");
                 if(highlightBox) squareelem.classList.add("highlighted1");
                 squareelem.onclick = () => {
@@ -532,9 +649,8 @@
     </head>
 
     <body>
-        <div id="plane" class="box">
+        <div id="plane" class="box"></div>
 
-        </div>
         <div id="tools" class="bar">
             <div id="eraser" class="cell">
                 <svg style="width:72%;height:72%;margin-bottom:-3%;margin-top:3%" viewBox="0 0 22.2 22.2">
@@ -545,12 +661,6 @@
             <div id="marker" class="cell">
                 <svg style="width:72%;height:72%;margin-bottom:-3%;margin-top:3%" viewBox="0 0 22.2 22.2">
                     <path fill="currentColor" d="M18.5,1.15C17.97,1.15 17.46,1.34 17.07,1.73L11.26,7.55L16.91,13.2L22.73,7.39C23.5,6.61 23.5,5.35 22.73,4.56L19.89,1.73C19.5,1.34 19,1.15 18.5,1.15M10.3,8.5L4.34,14.46C3.56,15.24 3.56,16.5 4.36,17.31C3.14,18.54 1.9,19.77 0.67,21H6.33L7.19,20.14C7.97,20.9 9.22,20.89 10,20.12L15.95,14.16" />
-                </svg>
-            </div>
-
-            <div id="clear" class="cell">
-                <svg style="width:72%;height:72%;margin-bottom:-3%;margin-top:3%" viewBox="0 0 22.2 22.2">
-                    <path fill="currentColor" d="M17.5,13C20,13 22,15 22,17.5C22,20 20,22 17.5,22C15,22 13,20 13,17.5C13,15 15,13 17.5,13M17.5,14.5C16.94,14.5 16.42,14.65 16,14.92L20.08,19C20.35,18.58 20.5,18.06 20.5,17.5A3,3 0 0,0 17.5,14.5M14.5,17.5A3,3 0 0,0 17.5,20.5C18.06,20.5 18.58,20.35 19,20.08L14.92,16C14.65,16.42 14.5,16.94 14.5,17.5M18.5,1.15C19,1.15 19.5,1.34 19.89,1.73L22.73,4.56C23.5,5.35 23.5,6.61 22.73,7.39L18.95,11.16C18.5,11.06 18,11 17.5,11C16.67,11 15.88,11.16 15.15,11.44L11.26,7.55L17.07,1.73C17.46,1.34 17.97,1.15 18.5,1.15M10.3,8.5L13.89,12.1C12.15,13.26 11,15.25 11,17.5C11,18 11.06,18.5 11.16,18.95L10,20.12C9.22,20.89 7.97,20.9 7.19,20.14L6.33,21H0.67L4.36,17.31C3.56,16.5 3.56,15.24 4.34,14.46L10.3,8.5Z" />
                 </svg>
             </div>
 
@@ -584,6 +694,12 @@
                 </svg>
             </div>
 
+            <div id="question" class="cell">
+                <svg style="width:72%;height:72%;margin-bottom:-3%;margin-top:3%" viewBox="0 0 450 450">
+                    <path fill="currentColor" d="M138.216,173.592c0-13.915,4.467-28.015,13.403-42.297c8.933-14.282,21.973-26.11,39.111-35.486c17.139-9.373,37.134-14.062,59.985-14.062c21.238,0,39.99,3.921,56.25,11.755c16.26,7.838,28.818,18.495,37.683,31.97c8.861,13.479,13.293,28.125,13.293,43.945c0,12.452-2.527,23.367-7.581,32.739c-5.054,9.376-11.062,17.469-18.018,24.279c-6.959,6.812-19.446,18.275-37.463,34.388c-4.981,4.542-8.975,8.535-11.975,11.976c-3.004,3.443-5.239,6.592-6.702,9.447c-1.466,2.857-2.603,5.713-3.406,8.57c-0.807,2.855-2.015,7.875-3.625,15.051c-2.784,15.236-11.501,22.852-26.147,22.852c-7.618,0-14.028-2.489-19.226-7.471c-5.201-4.979-7.8-12.377-7.8-22.192c0-12.305,1.902-22.962,5.713-31.97c3.808-9.01,8.861-16.92,15.161-23.73c6.296-6.812,14.794-14.904,25.488-24.28c9.373-8.202,16.15-14.392,20.325-18.567c4.175-4.175,7.69-8.823,10.547-13.953c2.856-5.126,4.285-10.691,4.285-16.699c0-11.718-4.36-21.605-13.074-29.663c-8.717-8.054-19.961-12.085-33.728-12.085c-16.116,0-27.981,4.065-35.596,12.195c-7.618,8.13-14.062,20.105-19.336,35.925c-4.981,16.555-14.43,24.829-28.345,24.829c-8.206,0-15.127-2.891-20.764-8.679C141.035,186.593,138.216,180.331,138.216,173.592z M245.442,414.412c-8.937,0-16.737-2.895-23.401-8.68c-6.667-5.784-9.998-13.877-9.998-24.279c0-9.229,3.22-16.991,9.668-23.291c6.444-6.297,14.354-9.448,23.73-9.448c9.229,0,16.991,3.151,23.291,9.448c6.296,6.3,9.448,14.062,9.448,23.291c0,10.255-3.296,18.312-9.888,24.17C261.7,411.481,254.084,414.412,245.442,414.412z"/>
+                </svg>
+            </div>
+
             <div id="check" class="cell">
                 <svg style="width:72%;height:72%;margin-bottom:-3%;margin-top:3%" viewBox="0 0 22.2 22.2">
                     <path fill="currentColor" d="M0.41,13.41L6,19L7.41,17.58L1.83,12M22.24,5.58L11.66,16.17L7.5,12L6.07,13.41L11.66,19L23.66,7M18,7L16.59,5.58L10.24,11.93L11.66,13.34L18,7Z" />
@@ -591,8 +707,145 @@
                 <span id="errorindicator">0</span>
             </div>
         </div>
-        <div id="inputs" class="bar">
 
+        <div id="inputs" class="bar"></div>
+
+        <div id="manual" class="overlay">
+            <div class="card">
+                <div style="padding:0 2rem">
+                    <h3 style="margin-bottom:0">The Miracle von Mitchell Lee</h3>
+                    <h4 style="margin-top:0">Programmiert von Thomas 'L4Ndo' Frischholz</h4>
+                    <span>
+                        Dieses spezielle Sudoku folgt neben den normalen Regeln des Spiels noch weiteren Regeln, welche dem Rätsel einen gewissen Kniff geben.<br>
+                        Mit einem Klick auf das entsprechende Symbol kann jede Regel für ein gewähltes Feld visualisiert werden.
+                    </span>
+                </div>
+
+                <div class="segment">
+                    <div style="padding:0 2rem">
+                        <h5 class="margin-top:0">Regeln:</h5>
+                        <div class="clue">
+                            <svg style="width:2.1rem;height:2.1rem;margin-right:1rem" viewBox="0 0 22.2 22.2">
+                                <path fill="currentColor" d="M18,18H6V6H18M18,4H6A2,2 0 0,0 4,6V18A2,2 0 0,0 6,20H18A2,2 0 0,0 20,18V6C20,4.89 19.1,4 18,4Z" />
+                            </svg>
+                            <div class="centered">
+                                <span>In jedem Quadrat des Spielfeldes darf jede Ziffer nur einmal vorkommen.</span>
+                            </div>
+                        </div>
+                        <div class="clue">
+                            <svg style="width:2.1rem;height:2.1rem;margin-right:1rem" viewBox="0 0 22.2 22.2">
+                                <path fill="currentColor" d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" />
+                            </svg>
+                            <div class="centered">
+                                <span>In jeder Reihe des Spielfeldes darf jede Ziffer nur einmal vorkommen.</span>
+                            </div>
+                        </div>
+                        <div class="clue">
+                            <svg style="width:2.1rem;height:2.1rem;margin-right:1rem" viewBox="0 0 22.2 22.2">
+                                <path fill="currentColor" d="M12 16C13.1 16 14 16.9 14 18S13.1 20 12 20 10 19.1 10 18 10.9 16 12 16M12 4C13.1 4 14 4.9 14 6S13.1 8 12 8 10 7.1 10 6 10.9 4 12 4M6 16C7.1 16 8 16.9 8 18S7.1 20 6 20 4 19.1 4 18 4.9 16 6 16M6 10C7.1 10 8 10.9 8 12S7.1 14 6 14 4 13.1 4 12 4.9 10 6 10M6 4C7.1 4 8 4.9 8 6S7.1 8 6 8 4 7.1 4 6 4.9 4 6 4M18 16C19.1 16 20 16.9 20 18S19.1 20 18 20 16 19.1 16 18 16.9 16 18 16M18 10C19.1 10 20 10.9 20 12S19.1 14 18 14 16 13.1 16 12 16.9 10 18 10M18 4C19.1 4 20 4.9 20 6S19.1 8 18 8 16 7.1 16 6 16.9 4 18 4Z" />
+                            </svg>
+                            <div class="centered">
+                                <span>In einem Quadrat um jede Ziffer darf die selbe Ziffer nicht noch einmal vorkommen.</span>
+                            </div>
+                        </div>
+                        <div class="clue">
+                            <svg style="width:2.1rem;height:2.1rem;margin-right:1rem" viewBox="0 0 22.2 22.2">
+                                <path fill="currentColor" d="M19,22H5V20H19V22M13,2V2C11.75,2 10.58,2.62 9.89,3.66L7,8L9,10L11.06,8.63C11.5,8.32 12.14,8.44 12.45,8.9C12.47,8.93 12.5,8.96 12.5,9V9C12.8,9.59 12.69,10.3 12.22,10.77L7.42,15.57C6.87,16.13 6.87,17.03 7.43,17.58C7.69,17.84 8.05,18 8.42,18H17V6A4,4 0 0,0 13,2Z" />
+                            </svg>
+                            <div class="centered">
+                                <span>Im Zug eines Springers um jede Ziffer in alle möglichen Richtungen entfernt darf die selbe Ziffer nicht noch einmal vorkommen.</span>
+                            </div>
+                        </div>
+                        <div class="clue">
+                            <svg style="width:2.1rem;height:2.1rem;margin-right:1rem" viewBox="0 0 22.2 22.2">
+                                <path fill="currentColor" d="M9.5,13.09L10.91,14.5L6.41,19H10V21H3V14H5V17.59L9.5,13.09M10.91,9.5L9.5,10.91L5,6.41V10H3V3H10V5H6.41L10.91,9.5M14.5,13.09L19,17.59V14H21V21H14V19H17.59L13.09,14.5L14.5,13.09M13.09,9.5L17.59,5H14V3H21V10H19V6.41L14.5,10.91L13.09,9.5Z" />
+                            </svg>
+                            <div class="centered">
+                                <span>Die 4 horizontal und vertikal angrenzenden Ziffern jeder Ziffer dürfen keine Reihenfolge mit dieser bilden.</span>
+                            </div>
+                        </div>
+
+                        <h5>Eingaben und Hilfen:</h5>
+                        <div class="clue">
+                            <div class="centered" style="grid-column:1/span 2">
+                                <span>Über die Leiste mit Ziffern oder durch drücken der entsprechenden Zahl auf einer Tastatur können diese in einem ausgewähltem Feld eingetragen werden.</span>
+                            </div>
+                        </div>
+                        <div class="clue">
+                            <svg style="width:2.1rem;height:2.1rem;margin-right:1rem" viewBox="0 0 22.2 22.2">
+                                <path fill="currentColor" d="M16.24,3.56L21.19,8.5C21.97,9.29 21.97,10.55 21.19,11.34L12,20.53C10.44,22.09 7.91,22.09 6.34,20.53L2.81,17C2.03,16.21 2.03,14.95 2.81,14.16L13.41,3.56C14.2,2.78 15.46,2.78 16.24,3.56M4.22,15.58L7.76,19.11C8.54,19.9 9.8,19.9 10.59,19.11L14.12,15.58L9.17,10.63L4.22,15.58Z" />
+                            </svg>
+                            <div class="centered">
+                                <span>Mit Hilfe des Radierers kann eine Ziffer aus einem ausgewähltem Feld entfernt werden.</span>
+                            </div>
+                        </div>
+                        <div class="clue">
+                            <svg style="width:2.1rem;height:2.1rem;margin-right:1rem" viewBox="0 0 22.2 22.2">
+                                <path fill="currentColor" d="M18.5,1.15C17.97,1.15 17.46,1.34 17.07,1.73L11.26,7.55L16.91,13.2L22.73,7.39C23.5,6.61 23.5,5.35 22.73,4.56L19.89,1.73C19.5,1.34 19,1.15 18.5,1.15M10.3,8.5L4.34,14.46C3.56,15.24 3.56,16.5 4.36,17.31C3.14,18.54 1.9,19.77 0.67,21H6.33L7.19,20.14C7.97,20.9 9.22,20.89 10,20.12L15.95,14.16" />
+                            </svg>
+                            <div class="centered">
+                                <span>Bei aktiviertem Markierer können beliebige Felder durch klicken farblich hervorgehoben oder die Hervorhebung entfernt werden.</span>
+                            </div>
+                        </div>
+                        <div class="clue">
+                            <svg style="width:2.1rem;height:2.1rem;margin-right:1rem" viewBox="0 0 450 450">
+                                <path fill="currentColor" d="M138.216,173.592c0-13.915,4.467-28.015,13.403-42.297c8.933-14.282,21.973-26.11,39.111-35.486c17.139-9.373,37.134-14.062,59.985-14.062c21.238,0,39.99,3.921,56.25,11.755c16.26,7.838,28.818,18.495,37.683,31.97c8.861,13.479,13.293,28.125,13.293,43.945c0,12.452-2.527,23.367-7.581,32.739c-5.054,9.376-11.062,17.469-18.018,24.279c-6.959,6.812-19.446,18.275-37.463,34.388c-4.981,4.542-8.975,8.535-11.975,11.976c-3.004,3.443-5.239,6.592-6.702,9.447c-1.466,2.857-2.603,5.713-3.406,8.57c-0.807,2.855-2.015,7.875-3.625,15.051c-2.784,15.236-11.501,22.852-26.147,22.852c-7.618,0-14.028-2.489-19.226-7.471c-5.201-4.979-7.8-12.377-7.8-22.192c0-12.305,1.902-22.962,5.713-31.97c3.808-9.01,8.861-16.92,15.161-23.73c6.296-6.812,14.794-14.904,25.488-24.28c9.373-8.202,16.15-14.392,20.325-18.567c4.175-4.175,7.69-8.823,10.547-13.953c2.856-5.126,4.285-10.691,4.285-16.699c0-11.718-4.36-21.605-13.074-29.663c-8.717-8.054-19.961-12.085-33.728-12.085c-16.116,0-27.981,4.065-35.596,12.195c-7.618,8.13-14.062,20.105-19.336,35.925c-4.981,16.555-14.43,24.829-28.345,24.829c-8.206,0-15.127-2.891-20.764-8.679C141.035,186.593,138.216,180.331,138.216,173.592z M245.442,414.412c-8.937,0-16.737-2.895-23.401-8.68c-6.667-5.784-9.998-13.877-9.998-24.279c0-9.229,3.22-16.991,9.668-23.291c6.444-6.297,14.354-9.448,23.73-9.448c9.229,0,16.991,3.151,23.291,9.448c6.296,6.3,9.448,14.062,9.448,23.291c0,10.255-3.296,18.312-9.888,24.17C261.7,411.481,254.084,414.412,245.442,414.412z"/>
+                            </svg>
+                            <div class="centered">
+                                <span>Über die Hilfe-Schaltfläche kann diese Anleitung jeder Zeit geöffnet werden.</span>
+                            </div>
+                        </div>
+                        <div class="clue">
+                            <svg style="width:2.1rem;height:2.1rem;margin-right:1rem" viewBox="0 0 22.2 22.2">
+                                <path fill="currentColor" d="M0.41,13.41L6,19L7.41,17.58L1.83,12M22.24,5.58L11.66,16.17L7.5,12L6.07,13.41L11.66,19L23.66,7M18,7L16.59,5.58L10.24,11.93L11.66,13.34L18,7Z" />
+                            </svg>
+                            <div class="centered">
+                                <span>
+                                    Bei aktivierter Prüfen-Schalfläche werden im aktuellen Stand des Rätsels Fehler gesucht und angezeigt.<br>
+                                    Der Zähler in der Schaltfläche gibt darüber Auskunft, wie oft ein fehlerhafter Stand gefunden wurde.
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                
+                <div class="clue" style="padding:0 2rem">
+                    <div class="centered" style="grid-column:1/span 2">
+                        <span>
+                            Mit dem Schließen dieser Hilfe läuft die Stoppuhr für die Lösung des Rätsels.<br>
+                            Bei korrekter Lösung des Rätsels öffnet sich ein Fenster und gibt Auskunft über die benötigte Zeit.<br>
+                            Viel Glück!
+                        </span>
+                    </div>
+                </div>
+                <div style="display:flex;width:100%;justify-content:center">
+                    <div id="close" class="button">
+                        <span>Schließen</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="solved" class="overlay" style="display:none">
+            <div class="card">
+                <div style="padding:0 2rem;margin-bottom:.6rem">
+                    <h3 style="margin-bottom:0">Herzlichen Glückwunsch, Bitch!</h3>
+                    <h4 style="margin-top:0">Du hast das Rätsel gelöst.</h4>
+
+                    <span>Für die Lösung hast du insgesamt</span>
+                    <span id="time"></span>
+                    <span>gebraucht und dabei</span>
+                    <span id="errors"></span>
+                    <span>Fehler gemacht.</span>
+                </div>
+
+                <div style="display:flex;width:100%;justify-content:center">
+                    <div id="restart" class="button">
+                        <span>Neu starten</span>
+                    </div>
+                </div>
+            </div>
         </div>
     </body>
 </html>
