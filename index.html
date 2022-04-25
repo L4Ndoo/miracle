@@ -326,19 +326,19 @@
                 let timeString = "";
                 if(years != null) timeString = years;
                 if(months != null) {
-                    if(days == null && hours == null && minutes == null && seconds == null) timestring += "und ";
+                    if(days == null && hours == null && minutes == null && seconds == null) timeString += "und ";
                     timeString += months;
                 }
                 if(days != null) {
-                    if(hours == null && minutes == null && seconds == null) timestring += "und ";
+                    if(hours == null && minutes == null && seconds == null) timeString += "und ";
                     timeString += days;
                 }
                 if(hours != null) {
-                    if(minutes == null && seconds == null) timestring += "und ";
+                    if(minutes == null && seconds == null) timeString += "und ";
                     timeString += hours;
                 }
                 if(minutes != null) {
-                    if(seconds == null) timestring += "und ";
+                    if(seconds == null) timeString += "und ";
                     timeString += minutes;
                 }
                 if(seconds != null) timeString += "und " + seconds;
