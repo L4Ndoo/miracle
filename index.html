@@ -324,7 +324,7 @@
                 let years = finished.getFullYear() > 1970 ? `${finished.getFullYear() - 1970} ${finished.getFullYear() - 1970 > 1 ? "Jahre" : "Jahr"} ` : null;
                 let months = finished.getMonth() > 0 ? `${finished.getMonth()} ${finished.getMonth() > 1 ? "Monate" : "Monat"} ` : null;
                 let days = finished.getDate() > 1 ? `${finished.getDate() - 1} ${finished.getDate() - 1 > 1 ? "Tage" : "Tag"} ` : null;
-                let hours = finished.getHours() > 0 ? `${finished.getHours()} ${finished.getHours() > 1 ? "Stunden" : "Stunde"} ` : null;
+                let hours = finished.getHours() > 1 ? `${finished.getHours() - 1} ${finished.getHours() > 1 ? "Stunden" : "Stunde"} ` : null;
                 let minutes = finished.getMinutes() > 0 ? `${finished.getMinutes()} ${finished.getMinutes() > 1 ? "Minuten" : "Minute"} ` : null;
                 let seconds = finished.getSeconds() > 0 || finished.getMilliseconds() > 0 ? `${finished.getSeconds() + finished.getMilliseconds() / 1000} Sekunden ` : null;
 
