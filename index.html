@@ -1,0 +1,598 @@
+<!doctype html>
+<html lang="de">
+    <head>
+        <meta charset="utf-8">
+        <title>The miracle</title>
+        <meta name="description" content="Miracle Sudoku by Mitchell Lee">
+        <meta name="author" content="Thomas 'L4Ndo' Frischholz">
+
+        <style>
+            @media all and (orientation: landscape) {
+                :root {
+                    --unit: 100vh;
+                    --inputsToolsWidth: calc(1.16666667 * var(--planeUnit));
+                    --inputsToolsHeight: calc(10.5* var(--planeUnit));
+                    --direction: row;
+                    --margin-first: .5em .5em .5em auto;
+                    --margin-last: .5em auto .5em .5em;
+                    --row: 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr;
+                    --col: 1fr;
+                }
+            }
+            @media all and (orientation: portrait) {
+                :root {
+                    --unit: 100vw;
+                    --inputsToolsHeight: calc(1.16666667 * var(--planeUnit));
+                    --inputsToolsWidth: calc(10.5* var(--planeUnit));
+                    --direction: column;
+                    --margin-first: auto calc(var(--unit)/150) calc(var(--unit)/150) calc(var(--unit)/150);
+                    --margin-last: calc(var(--unit)/150) calc(var(--unit)/150) auto calc(var(--unit)/150);
+                    --row: 1fr;
+                    --col: 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr;
+                }
+            }
+            :root {
+                --planeUnit: calc(var(--unit) / 11.4);
+            }
+            body {
+                align-items: center;
+                background-color: darkslategray;
+                display: flex;
+                flex-direction: var(--direction);
+                height: calc(100vh - var(--unit) / 150);
+                margin: calc(var(--unit) / 300);
+                width: calc(100vw - var(--unit) / 150);
+                user-select:none;
+            }
+            #plane {
+                margin: var(--margin-first);
+                height: calc(10.5*var(--planeUnit));
+                width: calc(10.5*var(--planeUnit));
+                background-color: lightgray
+            }
+            .box {
+                display: grid;
+                grid-template-columns: 1fr 1fr 1fr;
+                grid-template-rows: 1fr 1fr 1fr;
+                padding: calc(var(--planeUnit) / 30);
+            }
+            .cell {
+                position: relative;
+                background-color: rgb(45, 45, 45);
+                color: white;
+                font-family: Arial, Helvetica, sans-serif;
+                font-size: calc(var(--planeUnit) * .75);
+                margin: calc(var(--planeUnit) / 28);
+                padding-top: calc(var(--planeUnit) / 9);
+                text-align: center;
+            }
+
+            .given {
+                color: gray !important;
+            }
+
+            .checktext {
+                color: lightsalmon
+            }
+            .checkcolor {
+                background-color: darkred
+            }
+
+            .selected {
+                background-color: rgb(69, 69, 69);
+            }
+            .indicated {
+                background-color: rgb(33, 33, 33);
+            }
+
+            .marked {
+                background-color: rgb(69, 0, 69);
+            }
+            .markedindicated {
+                background-color: rgb(33, 0, 33);
+            }
+            .markedselected {
+                background-color: rgb(69, 33, 69);
+            }
+
+            .highlighted1 {
+                background-color: rgb(0, 0, 69);
+            }
+            .highlightedindicated1 {
+                background-color: rgb(0, 0, 33);
+            }
+            .markedhighlighted1 {
+                background-color: rgb(33, 0, 69);
+            }
+            .markedhighlightedindicated1 {
+                background-color: rgb(15, 0, 33);
+            }
+            .highlighted2 {
+                background-color: rgb(69, 69, 0);
+            }
+            .highlightedindicated2 {
+                background-color: rgb(33, 33, 0);
+            }
+            .markedhighlighted2 {
+                background-color: rgb(69, 33, 33);
+            }
+            .markedhighlightedindicated2 {
+                background-color: rgb(33, 15, 15);
+            }
+
+
+            #errorindicator {
+                position: absolute;
+                width: 96%;
+                top: calc(.75 * var(--planeUnit));
+                left: 0;
+                font-size: calc(.3 * var(--planeUnit));
+                text-align: right;
+            }
+            
+            .bar {
+                height: var(--inputsToolsHeight);
+                width: var(--inputsToolsWidth);
+                background-color: lightgray;
+                display: grid;
+                grid-template-columns: var(--col);
+                grid-template-rows: var(--row);
+                padding: calc(var(--planeUnit) / 30);
+            }
+
+            #tools {
+                margin: calc(var(--unit) / 180);
+            }
+            #inputs {
+                margin: var(--margin-last);
+            }
+        </style>
+        <script>
+            let board = [4,8,3,7,2,6,1,5,9,7,2,6,1,5,9,4,8,3,1,
+                5,9,4,8,3,7,2,6,8,3,7,2,6,1,5,9,4,2,6,10,5,9,4,
+                8,3,7,5,9,4,8,3,7,20,6,1,3,7,2,6,1,5,9,4,8,6,1,
+                5,9,4,8,3,7,2,9,4,8,3,7,2,6,1,6];
+            let errors = localStorage.getItem("errors") ?? 0;
+            let maxerrors = 99999;
+            let selected = null;
+            let marker = localStorage.getItem("marker") ?? false;
+            let check = false;
+            let highlightBox = localStorage.getItem("highlightBox") ?? false;
+            let highlightRows = localStorage.getItem("highlightRows") ?? false;
+            let highlightKing = localStorage.getItem("highlightKing") ?? false;
+            let highlightKnight = localStorage.getItem("highlightKnight") ?? false;
+            let highlightOrtadj = localStorage.getItem("highlightOrtadj") ?? false;
+            
+            // Getter for a cell
+            function getColRow(col, row) {
+                let i = 9 * row + col;
+                return board[i];
+            }
+
+            // Getter for things to highlight
+            function getRows(col, row) {
+                let result = [];
+                for (let c = 0; c < 9; c++)
+                    if (c != col) result.push(getColRow(c, row));
+                for (let r = 0; r < 9; r++)
+                    if (r != row) result.push(getColRow(col, r));
+                return result;
+            }
+
+            function getBox(col, row) {
+                let result = [];
+                for (let c = Math.floor(col/3)*3; c < Math.floor(col/3)*3+3; c++)
+                    for (let r = Math.floor(row/3)*3; r < Math.floor(row/3)*3+3; r++)
+                        if (col != c || row != r) result.push(getColRow(c, r));
+                return result;
+            }
+
+            function getKing(col, row) {
+                let result = [];
+                for(let c = col == 0 ? col : col-1; c <= col+1 && c < 9; c++)
+                    for(let r = row == 0 ? row : row-1; r <= row+1 && r < 9; r++)
+                        if(col != c || row != r) result.push(getColRow(c, r))
+                return result;
+            }
+
+            function getKnight(col, row) {
+                let result = [];
+                for(let c = col <= 1 ? col+2 : col-2; c <= col+2 && c < 9; c+=4)
+                    for(let r = row == 0 ? row+1 : row-1; r <= row+1 && r < 9; r+=2)
+                        result.push(getColRow(c, r));
+                for(let r = row <= 1 ? row+2 : row-2; r <= row+2 && r < 9; r+=4)
+                    for(let c = col == 0 ? col+1 : col-1; c <= col+1 && c < 9; c+=2)
+                        result.push(getColRow(c, r));
+                return result;
+            }
+
+            function getOrtAdj(col, row) {
+                let result = [];
+                for(let c = col == 0 ? col+1 : col-1; c <= col+2 && c < 9; c+=2)
+                    result.push(getColRow(c, row));
+                for(let r = row == 0 ? row+1 : row-1; r <= row+2 && r < 9; r+=2)
+                    result.push(getColRow(col, r));
+                return result;
+            }
+
+            // Helper functions
+            function buildCell(data = "") {
+                let text = document.createTextNode(data);
+                let cont = document.createElement("div");
+                cont.classList.add("cell");
+                cont.appendChild(text);
+                return {text, cont};
+            }
+
+            function init() {
+                
+                document.getElementById("errorindicator").textContent =
+                    errors > maxerrors ? "wtf?" : errors;
+
+                let plane = document.getElementById("plane");
+                let input = document.getElementById("inputs");
+                let tools = document.getElementById("tools");
+                
+                let storedSelected = localStorage.getItem("selected")?.split(";");
+                for(let b=0; b<9; b++) {
+                    let box = document.createElement("div");
+                    box.classList.add("box");
+
+                    for(let c=0; c<9; c++) {
+                        let uiElement = buildCell();
+                        box.appendChild(uiElement.cont);
+                        let index = (b%3)*3 + Math.floor(b/3)*27 + (c%3) + Math.floor(c/3)*9;
+
+                        let cell = {
+                            row: Math.floor(b/3)*3 + Math.floor(c/3),
+                            col: (c%3) + (b%3)*3,
+                            solution: board[index],
+                            given: false,
+                            selected: false,
+                            indicated: false,
+                            marked: false,
+                            highlighted: 0,
+                            value: "",
+                            uiElement
+                        }
+                        
+                        let stored = localStorage.getItem(`${cell.row}_${cell.col}`);
+                        if(stored != null) {
+                            cell = JSON.parse(stored);
+                            cell.uiElement = uiElement;
+                            if(cell.given) uiElement.cont.classList.add("given");
+                            uiElement.text.nodeValue = cell.value;
+                        }
+                        else if(cell.solution > 9) {
+                            cell.solution /= 10;
+                            cell.given = true;
+                            cell.value = cell.solution.toString();
+                            uiElement.cont.classList.add("given");
+                            uiElement.text.nodeValue = cell.solution;
+                        }
+                        cell.updateUI = () => {
+                            localStorage.setItem(`${cell.row}_${cell.col}`, JSON.stringify(cell));
+                            uiElement.cont.classList.remove("markedselected");
+                            uiElement.cont.classList.remove("selected");
+                            uiElement.cont.classList.remove("indicated");
+                            uiElement.cont.classList.remove("marked");
+                            uiElement.cont.classList.remove("markedindicated");
+                            uiElement.cont.classList.remove("highlighted1");
+                            uiElement.cont.classList.remove("highlighted2");
+                            uiElement.cont.classList.remove("markedhighlighted1");
+                            uiElement.cont.classList.remove("markedhighlighted2");
+                            uiElement.cont.classList.remove("highlightedindicated1");
+                            uiElement.cont.classList.remove("highlightedindicated2");
+                            uiElement.cont.classList.remove("markedhighlightedindicted1");
+                            uiElement.cont.classList.remove("markedhighlightedindicated2");
+                            if(cell == selected && cell.marked) {
+                                uiElement.cont.classList.add("markedselected");
+                            }
+                            else if(cell == selected) {
+                                uiElement.cont.classList.add("selected");
+                            }
+                            else if(cell.marked && cell.highlighted > 0 && cell.indicated) {
+                                uiElement.cont.classList.add("markedhighlightedindicated" + cell.highlighted);
+                            }
+                            else if(cell.marked && cell.highlighted > 0) {
+                                uiElement.cont.classList.add("markedhighlighted" + cell.highlighted);
+                            }
+                            else if(cell.marked && cell.indicated) {
+                                uiElement.cont.classList.add("markedindicated");
+                            }
+                            else if(cell.marked) {
+                                uiElement.cont.classList.add("marked");
+                            }
+                            else if(cell.highlighted > 0 && cell.indicated) {
+                                uiElement.cont.classList.add("highlightedindicated" + cell.highlighted);
+                            }
+                            else if(cell.highlighted > 0) {
+                                uiElement.cont.classList.add("highlighted" + cell.highlighted);
+                            }
+                            else if(cell.indicated) {
+                                uiElement.cont.classList.add("indicated");
+                            }
+                        }
+                        cell.setHighlights = () => {
+                            board.filter(c => c.highlighted > 0 || c.indicated == true)
+                                    .forEach(c => {
+                                        c.highlighted = 0;
+                                        c.indicated = false;
+                                        c.updateUI();
+                                    });
+                                if(selected.value != "") board.filter(c => c != selected && c.value == selected.value)
+                                    .forEach(c => {
+                                        c.indicated = true;
+                                        c.updateUI();
+                                    });
+                                if(highlightBox) getBox(cell.col, cell.row)
+                                    .forEach(c => {
+                                        c.highlighted = 1;
+                                        c.updateUI();
+                                    });
+                                if(highlightRows) getRows(cell.col, cell.row)
+                                    .forEach(c => {
+                                        c.highlighted = 1;
+                                        c.updateUI();
+                                    });
+                                if(highlightKing) getKing(cell.col, cell.row)
+                                    .forEach(c => {
+                                        c.highlighted = 1;
+                                        c.updateUI();
+                                    });
+                                if(highlightKnight) getKnight(cell.col, cell.row)
+                                    .forEach(c => {
+                                        c.highlighted = 1;
+                                        c.updateUI();
+                                    });
+                                if(highlightOrtadj) getOrtAdj(cell.col, cell.row)
+                                    .forEach(c => {
+                                        c.highlighted = 2;
+                                        c.updateUI();
+                                    });
+                        }
+
+                        if(storedSelected && storedSelected[0] == cell.row && storedSelected[1] == cell.col) {
+                            selected = cell;
+                        }
+
+                        uiElement.cont.onclick = () => {
+                            if(marker) {
+                                cell.marked = !cell.marked;
+                                cell.updateUI();
+                                return;
+                            }
+                            if(selected == cell) {
+                                selected = null;
+                                localStorage.removeItem("selected");
+                                cell.updateUI();
+                                board.filter(c => c.highlighted > 0)
+                                    .forEach(c => {
+                                        c.highlighted = 0;
+                                        c.updateUI();
+                                    });
+                            }
+                            else {
+                                let temp = selected;
+                                selected = cell;
+                                temp?.updateUI();
+                                cell.updateUI();
+                                cell.setHighlights();
+                                localStorage.setItem("selected", `${cell.row};${cell.col}`);
+                            }
+                        }
+                        cell.updateUI();
+                        board[index] = cell;
+                    }
+
+                    plane.appendChild(box);
+
+                    let inputElement = buildCell((b + 1));
+                    inputElement.cont.onclick = () => {
+                        if(selected != null && selected.value != b + 1) {
+                            selected.value = b + 1;
+                            selected.uiElement.text.nodeValue = selected.given ? selected.solution : selected.value;
+                            if(check && selected.value != selected.solution) {
+                                selected.uiElement.cont.classList.add("checktext");
+
+                                document.getElementById("errorindicator").textContent =
+                                    ++errors > maxerrors ? "wtf?" : errors;
+                            }
+                            else
+                                selected.uiElement.cont.classList.remove("checktext");
+                            selected.setHighlights();
+                            selected.updateUI();
+                        }
+                    }
+                    inputs.appendChild(inputElement.cont);
+                }
+                    
+                if(selected != null) {
+                    selected.updateUI();
+                    selected.setHighlights();
+                }
+                document.getElementById("eraser").onclick = () => {
+                    if(selected != null) {
+                        selected.value = "";
+                        selected.uiElement.text.nodeValue = "";
+                        selected.uiElement.cont.classList.remove("checktext");
+                    }
+                }
+                let markerelem = document.getElementById("marker");
+                if(marker) markerelem.classList.add("marked");
+                markerelem.onclick = (evt) => {
+                    marker = !marker;
+                    if(marker) {
+                        markerelem.classList.add("marked");
+                        localStorage.setItem("marker", marker);
+                    }
+                    else {
+                        markerelem.classList.remove("marked");
+                        localStorage.removeItem("marker");
+                    }
+                }
+                document.getElementById("clear").onclick = () => {
+                    board.forEach(cell => {
+                        if(cell.marked == true) {
+                            cell.marked = false;
+                            cell.updateUI();
+                        }
+                    });
+                }
+                let squareelem = document.getElementById("square");
+                if(highlightBox) squareelem.classList.add("highlighted1");
+                squareelem.onclick = () => {
+                    highlightBox = !highlightBox;
+                    if(highlightBox) {
+                        squareelem.classList.add("highlighted1");
+                        localStorage.setItem("highlightBox", highlightBox);
+                    }
+                    else {
+                        squareelem.classList.remove("highlighted1");
+                        localStorage.removeItem("highlightBox")
+                    }
+                    selected?.setHighlights();
+                }
+                let rowelem = document.getElementById("row");
+                if(highlightRows) rowelem.classList.add("highlighted1");
+                rowelem.onclick = () => {
+                    highlightRows = !highlightRows;
+                    if(highlightRows) {
+                        rowelem.classList.add("highlighted1");
+                        localStorage.setItem("highlightRows", highlightRows);
+                    }
+                    else {
+                        rowelem.classList.remove("highlighted1");
+                        localStorage.removeItem("highlightRows");
+                    }
+                    selected?.setHighlights();
+                }
+                let kingelem = document.getElementById("king");
+                if(highlightKing) kingelem.classList.add("highlighted1");
+                kingelem.onclick = () => {
+                    highlightKing = !highlightKing;
+                    if(highlightKing) {
+                        kingelem.classList.add("highlighted1");
+                        localStorage.setItem("highlightKing", highlightKing);
+                    }
+                    else {
+                        kingelem.classList.remove("highlighted1");
+                        localStorage.removeItem("highlightKing");
+                    }
+                    selected?.setHighlights();
+                }
+                let knightelem = document.getElementById("knight");
+                if(highlightKnight) knightelem.classList.add("highlighted1");
+                knightelem.onclick = () => {
+                    highlightKnight = !highlightKnight;
+                    if(highlightKnight) {
+                        knightelem.classList.add("highlighted1");
+                        localStorage.setItem("highlightKnight", highlightKnight);
+                    }
+                    else {
+                        knightelem.classList.remove("highlighted1");
+                        localStorage.removeItem("highlightKnight");
+                    }
+                    selected?.setHighlights();
+                }
+                let ortadjelem = document.getElementById("ortadj");
+                if(highlightOrtadj) ortadjelem.classList.add("highlighted2");
+                ortadjelem.onclick = () => {
+                    highlightOrtadj = !highlightOrtadj;
+                    if(highlightOrtadj) {
+                        ortadjelem.classList.add("highlighted2");
+                        localStorage.setItem("highlightOrtadj", highlightOrtadj);
+                    }
+                    else {
+                        ortadjelem.classList.remove("highlighted2");
+                        localStorage.removeItem("highlightOrtadj");
+                    }
+                    selected?.setHighlights();
+                }
+                let checkelem = document.getElementById("check");
+                checkelem.onclick = () => {
+                    check = !check;
+                    if(check) checkelem.classList.add("checkcolor");
+                    else checkelem.classList.remove("checkcolor");
+                    board.forEach(c => {
+                        if(c.value != "" && c.value != c.solution) {
+                            if(check) {
+                                c.uiElement.cont.classList.add("checktext");
+                                document.getElementById("errorindicator").textContent =
+                                    ++errors > maxerrors ? "wtf?" : errors;
+                                localStorage.setItem("errors", errors);
+                            }
+                            else c.uiElement.cont.classList.remove("checktext");
+                        }
+                    });
+                }
+            }
+            window.addEventListener("load", init);
+        </script> 
+    </head>
+
+    <body>
+        <div id="plane" class="box">
+
+        </div>
+        <div id="tools" class="bar">
+            <div id="eraser" class="cell">
+                <svg style="width:72%;height:72%;margin-bottom:-3%;margin-top:3%" viewBox="0 0 22.2 22.2">
+                    <path fill="currentColor" d="M16.24,3.56L21.19,8.5C21.97,9.29 21.97,10.55 21.19,11.34L12,20.53C10.44,22.09 7.91,22.09 6.34,20.53L2.81,17C2.03,16.21 2.03,14.95 2.81,14.16L13.41,3.56C14.2,2.78 15.46,2.78 16.24,3.56M4.22,15.58L7.76,19.11C8.54,19.9 9.8,19.9 10.59,19.11L14.12,15.58L9.17,10.63L4.22,15.58Z" />
+                </svg>
+            </div>
+            
+            <div id="marker" class="cell">
+                <svg style="width:72%;height:72%;margin-bottom:-3%;margin-top:3%" viewBox="0 0 22.2 22.2">
+                    <path fill="currentColor" d="M18.5,1.15C17.97,1.15 17.46,1.34 17.07,1.73L11.26,7.55L16.91,13.2L22.73,7.39C23.5,6.61 23.5,5.35 22.73,4.56L19.89,1.73C19.5,1.34 19,1.15 18.5,1.15M10.3,8.5L4.34,14.46C3.56,15.24 3.56,16.5 4.36,17.31C3.14,18.54 1.9,19.77 0.67,21H6.33L7.19,20.14C7.97,20.9 9.22,20.89 10,20.12L15.95,14.16" />
+                </svg>
+            </div>
+
+            <div id="clear" class="cell">
+                <svg style="width:72%;height:72%;margin-bottom:-3%;margin-top:3%" viewBox="0 0 22.2 22.2">
+                    <path fill="currentColor" d="M17.5,13C20,13 22,15 22,17.5C22,20 20,22 17.5,22C15,22 13,20 13,17.5C13,15 15,13 17.5,13M17.5,14.5C16.94,14.5 16.42,14.65 16,14.92L20.08,19C20.35,18.58 20.5,18.06 20.5,17.5A3,3 0 0,0 17.5,14.5M14.5,17.5A3,3 0 0,0 17.5,20.5C18.06,20.5 18.58,20.35 19,20.08L14.92,16C14.65,16.42 14.5,16.94 14.5,17.5M18.5,1.15C19,1.15 19.5,1.34 19.89,1.73L22.73,4.56C23.5,5.35 23.5,6.61 22.73,7.39L18.95,11.16C18.5,11.06 18,11 17.5,11C16.67,11 15.88,11.16 15.15,11.44L11.26,7.55L17.07,1.73C17.46,1.34 17.97,1.15 18.5,1.15M10.3,8.5L13.89,12.1C12.15,13.26 11,15.25 11,17.5C11,18 11.06,18.5 11.16,18.95L10,20.12C9.22,20.89 7.97,20.9 7.19,20.14L6.33,21H0.67L4.36,17.31C3.56,16.5 3.56,15.24 4.34,14.46L10.3,8.5Z" />
+                </svg>
+            </div>
+
+            <div id="square" class="cell">
+                <svg style="width:72%;height:72%;margin-bottom:-3%;margin-top:3%" viewBox="0 0 22.2 22.2">
+                    <path fill="currentColor" d="M18,18H6V6H18M18,4H6A2,2 0 0,0 4,6V18A2,2 0 0,0 6,20H18A2,2 0 0,0 20,18V6C20,4.89 19.1,4 18,4Z" />
+                </svg>
+            </div>
+
+            <div id="row" class="cell">
+                <svg style="width:72%;height:72%;margin-bottom:-3%;margin-top:3%" viewBox="0 0 22.2 22.2">
+                    <path fill="currentColor" d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" />
+                </svg>
+            </div>
+
+            <div id="king" class="cell">
+                <svg style="width:72%;height:72%;margin-bottom:-3%;margin-top:3%" viewBox="0 0 22.2 22.2">
+                    <path fill="currentColor" d="M12 16C13.1 16 14 16.9 14 18S13.1 20 12 20 10 19.1 10 18 10.9 16 12 16M12 4C13.1 4 14 4.9 14 6S13.1 8 12 8 10 7.1 10 6 10.9 4 12 4M6 16C7.1 16 8 16.9 8 18S7.1 20 6 20 4 19.1 4 18 4.9 16 6 16M6 10C7.1 10 8 10.9 8 12S7.1 14 6 14 4 13.1 4 12 4.9 10 6 10M6 4C7.1 4 8 4.9 8 6S7.1 8 6 8 4 7.1 4 6 4.9 4 6 4M18 16C19.1 16 20 16.9 20 18S19.1 20 18 20 16 19.1 16 18 16.9 16 18 16M18 10C19.1 10 20 10.9 20 12S19.1 14 18 14 16 13.1 16 12 16.9 10 18 10M18 4C19.1 4 20 4.9 20 6S19.1 8 18 8 16 7.1 16 6 16.9 4 18 4Z" />
+                </svg>
+            </div>
+
+            <div id="knight" class="cell">
+                <svg style="width:72%;height:72%;margin-bottom:-3%;margin-top:3%" viewBox="0 0 22.2 22.2">
+                    <path fill="currentColor" d="M19,22H5V20H19V22M13,2V2C11.75,2 10.58,2.62 9.89,3.66L7,8L9,10L11.06,8.63C11.5,8.32 12.14,8.44 12.45,8.9C12.47,8.93 12.5,8.96 12.5,9V9C12.8,9.59 12.69,10.3 12.22,10.77L7.42,15.57C6.87,16.13 6.87,17.03 7.43,17.58C7.69,17.84 8.05,18 8.42,18H17V6A4,4 0 0,0 13,2Z" />
+                </svg>
+            </div>
+
+            <div id="ortadj" class="cell">
+                <svg style="width:72%;height:72%;margin-bottom:-3%;margin-top:3%" viewBox="0 0 22.2 22.2">
+                    <path fill="currentColor" d="M9.5,13.09L10.91,14.5L6.41,19H10V21H3V14H5V17.59L9.5,13.09M10.91,9.5L9.5,10.91L5,6.41V10H3V3H10V5H6.41L10.91,9.5M14.5,13.09L19,17.59V14H21V21H14V19H17.59L13.09,14.5L14.5,13.09M13.09,9.5L17.59,5H14V3H21V10H19V6.41L14.5,10.91L13.09,9.5Z" />
+                </svg>
+            </div>
+
+            <div id="check" class="cell">
+                <svg style="width:72%;height:72%;margin-bottom:-3%;margin-top:3%" viewBox="0 0 22.2 22.2">
+                    <path fill="currentColor" d="M0.41,13.41L6,19L7.41,17.58L1.83,12M22.24,5.58L11.66,16.17L7.5,12L6.07,13.41L11.66,19L23.66,7M18,7L16.59,5.58L10.24,11.93L11.66,13.34L18,7Z" />
+                </svg>
+                <span id="errorindicator">0</span>
+            </div>
+        </div>
+        <div id="inputs" class="bar">
+
+        </div>
+    </body>
+</html>
